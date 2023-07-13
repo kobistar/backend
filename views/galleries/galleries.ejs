@@ -1,0 +1,35 @@
+<form action="/gallery" method="POST" enctype="multipart/form-data">
+  <label for="galleryName">Gallery name:</label>
+  <input type="text" id="galleryName" name="galleryName" required>
+
+  <label for="galleryImage">Title photo</label>
+  <input type="file" id="galleryImage" name="galleryImage">
+
+  <button type="submit">Submit</button>
+</form>
+
+
+<div style="display: flex; flex-direction: column">
+    <a href = "/gallery" style="margin-top: 10px">Reset form</a>
+</div>
+
+
+<div style="display: flex; flex-direction: column">
+
+  <p style="margin-top: 30px">GalleryList</p>
+  
+  <% galleryList.galleries.forEach(function(item) { %>
+    <p style="margin-top: 20px">
+      <span style="display: inline-block; width: 30px;">Path:</span>
+      <a href="/gallery/<%= item.path %>"><%= item.path %></a>
+    </p>
+    <p style="margin-top: 0px">Name: <%= item.name %></p>
+    
+    <% if (item.image) { %>
+      <p style="margin-top: 0px">Image Path: <%= item.image.path %></p>
+      <p style="margin-top: 0px">Image Fullpath: file:///<%= item.image.fullpath %></p>
+      <p style="margin-top: 0px">Image Name: <%= item.image.name %></p>
+      <p style="margin-top: 0px">Image Modified: <%= item.image.modified %></p>
+    <% } %>
+  <% }) %>
+</div>

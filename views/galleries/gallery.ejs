@@ -1,0 +1,24 @@
+<form action="/gallery/<%= galleryData.gallery.path %>" method="POST" enctype="multipart/form-data">
+
+  <label for="galleryImage">Add Image</label>
+  <input type="file" id="galleryImage" name="galleryImage" required>
+
+  <button type="submit">Submit</button>
+</form>
+
+<h1>Gallery Data</h1>
+
+<p>Path: <%= galleryData.gallery.path %></p>
+<p>Name: <%= galleryData.gallery.name %></p>
+
+<h2>Images:</h2>
+<ul>
+  <% galleryData.images.forEach(function(image) { %>
+    <li>
+      <p>Path: <%= image.path %></p>
+      <p>Fullpath: <%= image.fullpath %></p>
+      <p>Name: <%= image.name %></p>
+      <p>Modified: <%= image.modified %></p>
+    </li>
+  <% }) %>
+</ul>
