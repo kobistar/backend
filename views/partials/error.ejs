@@ -1,0 +1,11 @@
+<% if (errorSchema) { %>
+    <h2>Error Schema:</h2>
+    <p>Code: <%= errorSchema.code %></p>
+    <p>Name: <%= errorSchema.name %></p>
+    <p>Description: <%= errorSchema.description %></p>
+    <h3>Playload:</h3>
+    <p>Paths: <%= errorSchema.playload.paths %></p>
+    <p>Validator: <%= errorSchema.playload.validator %></p>
+    <p>Example: <%= errorSchema.playload.example %></p>
+<% } %>
+  

@@ -5,7 +5,7 @@ const app = express()
 
 const indexRouter = require('./routes/index.js')
 const gallery = require('./routes/gallery.js')
-const gallery_path = require('./routes/gallery_path.js')
+const one_gallery = require('./routes/one_gallery.js')
 const PORT = process.env.PORT || 3000
 
 app.set('view engine', 'ejs')
@@ -20,7 +20,7 @@ app.use(express.urlencoded({ extended: true }))
 
 app.use('/', indexRouter)
 app.use('/', gallery)
-app.use('/', gallery_path)
+app.use('/', one_gallery)
 
 
 

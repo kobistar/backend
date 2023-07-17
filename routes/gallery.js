@@ -2,7 +2,8 @@ const express = require('express')
 const multer = require('multer')
 const path = require('path')
 const fs = require('fs')
-
+const router = express.Router()
+const dataParser = require('../services/galleryServices.js')
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, path.join(__dirname, '../images/titlePhoto'))
@@ -23,8 +24,6 @@ const upload = multer({
   }
 })
 
-const router = express.Router()
-const dataParser = require('../services/galleryServices.js')
 
 router.get('/gallery', (req, res) => {
   dataParser.parseData((err, galleryList) => {
@@ -36,12 +35,25 @@ router.get('/gallery', (req, res) => {
 
 
 router.post('/gallery', upload.single('galleryImage'),(req, res) => {
-  const galleryName = req.body.galleryName 
+  const expectedImageStructure = ["path", "fullpath", "name", "modified"]
+  const expectedStructureWithImage = ["path", "name", "image"]
+  const expectedStructureWithOutImage = ["path","name"]
+  const galleryName = req.body.galleryName
   
+  const errorSchema = {
+    code: 400,
+    playload: {
+      paths: galleryName,
+      validator: "required",
+      example: null
+    },
+    name: "INVALID_SCHEMA",
+    description: "Bad JSON object: u'name' is a required property"
+  } 
 
-  if(checkNameValidity(galleryName)) return res.status(400).render('../views/partials/back.ejs', { Message: "Invalid request. The request doesn't conform to the schema."})
+  if(checkNameValidity(galleryName)) return res.status(400).render('../views/partials/back.ejs', { Message: "Name must be a string."})
 
-  if (checkSlashPresence(galleryName)) return res.status(400).render('../views/partials/back.ejs', { Message: "Invalid request. The request doesn't conform to the schema."})
+  if (checkSlashPresence(galleryName)) return res.status(400).render('../views/partials/back.ejs', { Message: "Name can not contain slash."})
   
   const galleryDataWithOutImage = {
     path: replaceSpaceWithPercent(galleryName),
@@ -82,17 +94,28 @@ router.post('/gallery', upload.single('galleryImage'),(req, res) => {
     
     fs.mkdir(imagePath, { recursive: true }, (err) => {
       if (err)console.error('Error creating a folder:', err) 
-      else console.log('Folder was created successfully') 
     })
 
     fs.writeFile(jsonPath, JSON.stringify(data), 'utf-8', (err) => {
       if (err) console.error('Error creating a file:', err) 
-      else console.log('File was created successfully') 
   
 })
 
-    if(req.file) galleryList.galleries.push(galleryDataWithImage) 
-    else galleryList.galleries.push(galleryDataWithOutImage) 
+    if(req.file){
+      const isStructureValid = deepEqual(Object.keys(galleryDataWithImage), expectedStructureWithImage)
+      const isStructureImageValid = deepEqual(Object.keys(galleryDataWithImage.image), expectedImageStructure)
+      
+      if (!isStructureValid || !isStructureImageValid) return res.status(400).render('../views/partials/error.ejs', { Message: "Invalid request. The request doesn't conform to the schema.", errorSchema: errorSchema })
+
+      galleryList.galleries.push(galleryDataWithImage)
+    }
+    else{ 
+      const isStructureValid = deepEqual(Object.keys(galleryDataWithOutImage), expectedStructureWithOutImage)
+
+      if (!isStructureValid) return res.status(400).render('../views/partials/error.ejs', { Message: "Invalid request. The request doesn't conform to the schema.", errorSchema: errorSchema })
+
+      galleryList.galleries.push(galleryDataWithOutImage) 
+    }
     
 
     const updatedData = JSON.stringify(galleryList)
@@ -121,6 +144,15 @@ function replaceSpaceWithPercent(name) {
   if (name && name.includes(' ')) name = name.replace(/ /g, '%20')
   
   return name
+}
+
+function deepEqual(arr1, arr2) {
+  if (arr1.length !== arr2.length) return false;
+
+  for (let i = 0; i < arr1.length; i++){
+    if (arr1[i] !== arr2[i]) return false;
+  }
+  return true;
 }
 
 

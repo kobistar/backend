@@ -1,0 +1,11 @@
+<% if (response) { %>
+    <h2>Response:</h2>
+    <% response.uploaded.forEach(function(item) { %>
+      <p>Path: <%= item.path %></p>
+      <p>Full Path: <%= item.fullpath %></p>
+      <p>Name: <%= item.name %></p>
+      <p>Modified: <%= item.modified %></p>
+      <hr>
+    <% }) %>
+  <% } %>
+  
