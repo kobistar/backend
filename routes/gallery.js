@@ -4,6 +4,7 @@ const path = require('path')
 const fs = require('fs')
 const router = express.Router()
 const dataParser = require('../services/galleryServices.js')
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, path.join(__dirname, '../images/titlePhoto'))
@@ -21,6 +22,18 @@ const upload = multer({
       return cb(error, false)
     }
     cb(null, true)
+  }
+})
+
+
+//Allows you to view all galleries and information about them
+router.get('/gallery', (req, res) => {
+  try {
+    const galleryList = dataParser.parseData()
+    res.status(200).render('../views/galleries/galleries.ejs', { galleryList })
+  } 
+  catch (err) {
+    res.status(500).render('../views/partials/back.ejs', { Message: 'Internal Server Error' })
   }
 })
 
@@ -74,58 +87,54 @@ router.post('/gallery', upload.single('galleryImage'),(req, res) => {
     }
   }
 
-  dataParser.parseData((err, galleryList) => {
-    if (err) return res.status(500).render('../views/partials/back.ejs', { Message: 'Internal Server Error'})
-    
-    const existingGallery = galleryList.galleries.find(gallery => gallery.name === galleryName)
-    
-    if (existingGallery) { 
+  try {
+    const galleryList = dataParser.parseData()
+
+    const galleryExist = galleryList.galleries.find(gallery => gallery.name === galleryName)
+
+    if (galleryExist) {
       return res.status(409).render('../views/partials/back.ejs', { Message: 'Gallery with the same name already exists' })
     }
 
     const jsonPath = path.join(__dirname, '../database/', galleryName + '.json')
-    const imagePath = path.join(__dirname, "../images", galleryName)
+    const imagePath = path.join(__dirname, '../images', galleryName)
 
     const data = {
       gallery: galleryDataWithOutImage,
-      images: []
+      images: [],
     }
-    
-    
-    fs.mkdir(imagePath, { recursive: true }, (err) => {
-      if (err)console.error('Error creating a folder:', err) 
-    })
 
-    fs.writeFile(jsonPath, JSON.stringify(data), 'utf-8', (err) => {
-      if (err) console.error('Error creating a file:', err) 
-  
-})
-
-    if(req.file){
+    fs.mkdirSync(imagePath, { recursive: true })
+    fs.writeFileSync(jsonPath, JSON.stringify(data), 'utf-8')
+    
+    if (req.file) {
       const isStructureValid = deepEqual(Object.keys(galleryDataWithImage), expectedStructureWithImage)
       const isStructureImageValid = deepEqual(Object.keys(galleryDataWithImage.image), expectedImageStructure)
-      
-      if (!isStructureValid || !isStructureImageValid) return res.status(400).render('../views/partials/error.ejs', { Message: "Invalid request. The request doesn't conform to the schema.", errorSchema: errorSchema })
+
+      if (!isStructureValid || !isStructureImageValid) {
+        return res.status(400).render('../views/partials/error.ejs', { Message: "Invalid request. The request doesn't conform to the schema.", errorSchema: errorSchema })
+      }
 
       galleryList.galleries.push(galleryDataWithImage)
-    }
-    else{ 
+    } 
+    else {
       const isStructureValid = deepEqual(Object.keys(galleryDataWithOutImage), expectedStructureWithOutImage)
 
-      if (!isStructureValid) return res.status(400).render('../views/partials/error.ejs', { Message: "Invalid request. The request doesn't conform to the schema.", errorSchema: errorSchema })
+      if (!isStructureValid) {
+        return res.status(400).render('../views/partials/error.ejs', { Message: "Invalid request. The request doesn't conform to the schema.", errorSchema: errorSchema })
+      }
 
-      galleryList.galleries.push(galleryDataWithOutImage) 
+      galleryList.galleries.push(galleryDataWithOutImage)
     }
-    
 
     const updatedData = JSON.stringify(galleryList)
-    dataParser.saveData(updatedData, (err) => {
-      if (err) return res.status(500).render('../views/partials/back.ejs', { Message: 'Internal Server Error' })
-    
-      res.status(201).render('../views/partials/back.ejs', { Message: 'Gallery was created' })
-    })
-    
-  })
+    dataParser.saveData(updatedData)
+
+    res.status(201).render('../views/partials/back.ejs', { Message: 'Gallery was created' })
+  } 
+  catch (err) {
+    res.status(500).render('../views/partials/back.ejs', { Message: 'Internal Server Error' })
+  }
 })
 
 
@@ -147,12 +156,12 @@ function replaceSpaceWithPercent(name) {
 }
 
 function deepEqual(arr1, arr2) {
-  if (arr1.length !== arr2.length) return false;
+  if (arr1.length !== arr2.length) return false
 
   for (let i = 0; i < arr1.length; i++){
-    if (arr1[i] !== arr2[i]) return false;
+    if (arr1[i] !== arr2[i]) return false
   }
-  return true;
+  return true
 }
 
 

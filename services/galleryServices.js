@@ -1,34 +1,31 @@
 const path = require('path')
 const fs = require('fs')
 const jsonPath = path.join(__dirname, '../database/GalleryDB.json')
-function parseData(callback) {
 
+function parseData() {
     existFile()
-    fs.readFile(jsonPath, 'utf-8', (err, data) => {
-        if (err) {
-            console.error(err)
-            callback(err)
-            return
-        }
-        
-        let jsonData
-        if (data.length > 0) jsonData = JSON.parse(data)
-        else jsonData = { galleries: [] }
-        callback(null, jsonData)
-    })
-}
+    try {
+      const data = fs.readFileSync(jsonPath, 'utf-8')
+      let jsonData = { galleries: [] }
+      
+      if (data.length > 0) return JSON.parse(data)
+      else return jsonData 
+      
+    } catch (err) {
+      throw err
+    }
+  }
+  
 
-function saveData(updatedData, callback){
-    
-    fs.writeFile(jsonPath, updatedData, 'utf-8', (err) => {
-        if (err) {
-            console.error(err)
-            callback(err)
-            return
-        }
-        callback(null)
-  })
+function saveData(updatedData) {
+    try {
+        fs.writeFileSync(jsonPath, updatedData, 'utf-8');
+    } 
+    catch (err) {
+        throw err;
+    }
 }
+  
 
 
 function existFile(){
