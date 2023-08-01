@@ -3,11 +3,10 @@ const fs = require('fs')
 const jsonPath = path.join(__dirname, '../database/GalleryDB.json')
 
 function parseData() {
-    existFile()
+    //existFile()
     try {
       const data = fs.readFileSync(jsonPath, 'utf-8')
       let jsonData = { galleries: [] }
-      
       if (data.length > 0) return JSON.parse(data)
       else return jsonData 
       
@@ -25,8 +24,6 @@ function saveData(updatedData) {
         throw err;
     }
 }
-  
-
 
 function existFile(){
     if (!fs.existsSync(jsonPath)) fs.writeFileSync(jsonPath, JSON.stringify({ galleries: [] }))

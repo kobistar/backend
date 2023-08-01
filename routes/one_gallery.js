@@ -4,176 +4,298 @@ const path = require('path')
 const fs = require('fs')
 const sharp = require('sharp')
 const router = express.Router()
-const jsonPath = path.join(__dirname, '../database/GalleryDB.json')
+const databasePath = path.join(__dirname, '../database/GalleryDB.json')
+const Ajv = require('ajv')
+const gallerySchema = require('../schemas/gallerySchema.js')
+const moment = require('moment')
+const ajv = new Ajv()
 
-//Defines a configuration for saving uploaded files to disk, 
-//where the path to the destination folder and the filename 
+//Defines a configuration for saving uploaded files to disk,
+//where the path to the destination folder and the filename
 //are derived from the request parameters and the original filename.
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, '../images/', req.params.path)) 
+    /*const titlePhotoPath = path.join(
+      __dirname,
+      '../images/titlePhoto',
+      req.params.gallery
+    )
+    if (fs.readdirSync(titlePhotoPath) == 0) {
+      cb(null, titlePhotoPath)
+    } else {*/
+    cb(null, path.join(__dirname, '../images/', req.params.gallery))
+    //}
   },
-  filename: function (req, file, cb) { cb(null, file.originalname) }
-})
 
+  filename: function (req, file, cb) {
+    cb(null, file.originalname)
+  },
+})
 
 //Allows you to upload files to the server and filter them by allowed types.
 const upload = multer({
   storage: storage,
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['image/jpg', 'image/png']
-    if (!allowedTypes.includes(file.mimetype)) {
-      const error = new Error('Only JPG and PNG files are allowed')
-      error.code = 'UNSUPPORTED_MEDIA_TYPE'
-      return cb(error, false)
+    const allowedTypes = ['image/jpeg']
+    if (!file) {
+      req.fileFilterError = {
+        error: 'No file uploaded',
+        code: 'NO_FILE',
+      }
+      return cb(null, false)
     }
+
+    if (
+      !allowedTypes.includes(file.mimetype) ||
+      !file.originalname.includes('.jpeg')
+    ) {
+      req.fileFilterError = {
+        error: 'Only JPEG files are allowed',
+        code: 'UNSUPPORTED_MEDIA_TYPE',
+      }
+      return cb(null, false)
+    }
+
+    if (!galleryExist(replaceSpaceWithPercent(req.params.gallery))) {
+      req.fileFilterError = {
+        error: "Gallery doesn't exist.",
+        code: 'GALLERY_NOT_FOUND',
+      }
+      return cb(null, false)
+    }
+
     cb(null, true)
-  }
+  },
 })
 
 //The contents of a specific gallery will be displayed with information about all photos
 router.get('/gallery/:path', (req, res) => {
+  const galleryName = req.params.path
   try {
-    
     //Checks whether the gallery exists
-    if (!galleryExist(replaceSpaceWithPercent(req.params.path))) return res.status(404).render('../views/partials/back.ejs', { Message: 'Gallery does not exist' })
+    if (!galleryExist(replaceSpaceWithPercent(galleryName))) {
+      return res.status(404).json({ error: 'Gallery does not exist' })
+    }
 
+    const validateResponse = ajv.compile(gallerySchema.oneGalleryGetSchema)
+    const responseData = oneGalleryList(galleryName)
+    const isValid = validateResponse(responseData)
+    if (!isValid) {
+      return res.status(500).json(validateResponse.errors)
+    }
     //if the gallery database exists, the oneGalleryList function is called, which will contain information about the gallery
-    res.status(200).render('../views/galleries/gallery.ejs', { galleryData: oneGalleryList(req.params.path)})
-  } 
-  catch (err) {
-    return res.status(500).render('../views/partials/back.ejs', { Message: 'Internal Server Error ' })
+    res.status(200).json(responseData)
+  } catch (err) {
+    return res.status(500).json({ error: 'Internal Server Error', err })
   }
 })
 
 //Adding a new photo to the gallery
-router.post('/gallery/:path', upload.single('galleryImage'),(req, res) => {
+router.post('/gallery/:gallery', upload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(500).json({ error: 'The file did not upload.' })
+  }
+  const galleryName = req.params.gallery
 
-  if(req.file.originalname === null) return res.status(400).render('../views/partials/back.ejs', { Message: 'Invalid request - file not found.' })
+  if (req.fileFilterError) {
+    if (req.fileFilterError.code === 'NO_FILE') {
+      return res.status(400).json({ error: 'No file uploaded' })
+    }
 
-  if(req.file.originalname === req.params.path) return res.status(500).render('../views/partials/back.ejs', { Message: 'An image can not have the same name as its gallery.' })
+    if (req.fileFilterError.code === 'UNSUPPORTED_MEDIA_TYPE') {
+      return res.status(400).json({ error: 'Only JPEG files are allowed' })
+    }
 
-  const galleryPath = path.join(__dirname, '../database', req.params.path + '.json')
+    if (req.fileFilterError.code === 'GALLERY_NOT_FOUND') {
+      return res.status(404).json({ error: "Gallery doesn't exist" })
+    }
+  }
 
+  if (req.file.originalname === galleryName) {
+    return res
+      .status(500)
+      .json({ error: 'An image can not have the same name as its gallery.' })
+  }
+
+  const galleryPath = path.join(__dirname, '../database', galleryName + '.json')
+
+  const allGalleriesPath = path.join(__dirname, '../database/GalleryDB.json')
+
+  const fullPathToImage = path.join(
+    replaceSpaceWithPercent(galleryName),
+    replaceSpaceWithPercent(req.file.originalname)
+  )
   const imageData = {
     path: replaceSpaceWithPercent(req.file.originalname),
-    fullpath: path.join(replaceSpaceWithPercent(req.params.path), replaceSpaceWithPercent(req.file.originalname)),
+    fullpath: fullPathToImage,
     name: req.file.originalname,
-    modified: new Date().toISOString()
+    modified: moment().format(),
   }
 
-  const response = {
-    uploaded: [{
-      path: replaceSpaceWithPercent(req.file.originalname),
-      fullpath: path.join(replaceSpaceWithPercent(req.params.path), replaceSpaceWithPercent(req.file.originalname)),
-      name: req.file.originalname,
-      modified: new Date().toISOString()
-    }]
-  }
+  const response = { uploaded: [imageData] }
 
   try {
-    if (!galleryExist(replaceSpaceWithPercent(req.params.path))) return res.status(404).render('../views/partials/back.ejs', { Message: 'Gallery not found' })
+    let galleryList = allGalleriesList()
+    const galleryIndex = galleryList.galleries.findIndex(
+      (gallery) => gallery.path === replaceSpaceWithPercent(galleryName)
+    )
 
-    let galleryListData = oneGalleryList(req.params.path)
+    const gallery = galleryList.galleries[galleryIndex]
+
+    //if gallery has no title photo, first upload photo will be in titlePhoto
+    if (!gallery.image) {
+      gallery.image = imageData
+      fs.writeFileSync(allGalleriesPath, JSON.stringify(galleryList), 'utf-8')
+    }
+    // else {
+    //If gallery has already titlePhoto, image save in {name}.json
+
+    let galleryListData = oneGalleryList(galleryName)
     galleryListData.images.push(imageData)
-
     const updatedData = JSON.stringify(galleryListData)
     fs.writeFileSync(galleryPath, updatedData, 'utf-8')
+    //}
 
-    res.status(201).render('../views/partials/response.ejs', {response: response})
-  } 
-  catch (err) {
-    return res.status(500).render('../views/partials/back.ejs', { Message: 'Error processing the request' })
+    res.status(201).json(response)
+  } catch (err) {
+    return res.status(500).json({ error: 'Error processing the request.', err })
   }
 })
 
-router.delete('/gallery/:path', (req, res) => {
-
-  //if the request was to delete the image
-  if(req.params.path.includes('.png') || req.params.path.includes('.jpg')){
-    const parameters = req.params.path.split('/')
-    const directory = parameters[0]
-    const filename = parameters[1]
-    if (!galleryExist(replaceSpaceWithPercent(directory))){
-      return res.status(404).render('../views/partials/back.ejs', { Message: 'Gallery does not exist'})
-    }
-
-    const index = imageExist(directory, filename)
-
-    const galleryList = oneGalleryList(directory)
-    
-    if (index !== null) {
-      galleryList.images.splice(index, 1)
-      const updatedData = JSON.stringify(galleryList)
-      
-      try{
-        fs.writeFileSync(path.join(__dirname, "../database", removePercentEncoding(directory) + '.json'), updatedData, 'utf-8')
-        fs.unlinkSync(path.join(__dirname, "../images", removePercentEncoding(directory), removePercentEncoding(filename)))
-      }
-      catch(err){
-        return res.status(500).render('../views/partials/back.ejs', { Message: 'Error writing to file.' })
-      }
-    }
-
-    else{
-      return res.status(404).render('../views/partials/back.ejs', { Message: 'Image does not exist.' })
-    }
-
-    return res.status(200).render('../views/partials/back.ejs', { Message: 'Image was deleted.' })
+//if the request was to delete, the gallery
+router.delete('/gallery/:gallery', (req, res) => {
+  const galleryName = req.params.gallery
+  if (!galleryExist(replaceSpaceWithPercent(galleryName))) {
+    return res.status(404).json({ error: 'Gallery does not exist.' })
   }
-
-  //if the request was to delete, the gallery
   try {
-    if (!fs.existsSync(jsonPath)) fs.writeFileSync(jsonPath, JSON.stringify({ galleries: [] }))
-    const galleryList = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'))
-    const galleryIndex = galleryList.galleries.findIndex(gallery => gallery.path === replaceSpaceWithPercent(req.params.path))
-    if (galleryIndex !== -1) {
+    if (!fs.existsSync(databasePath))
+      return res.status(500).json({ error: "Database doesn't exist." })
 
-      //Delete gallery from GalleryDB.json
-      const gallery = galleryList.galleries[galleryIndex]
+    const galleryList = allGalleriesList()
+    const galleryIndex = galleryList.galleries.findIndex(
+      (gallery) => gallery.path === replaceSpaceWithPercent(galleryName)
+    )
+    if (galleryIndex === -1)
+      return res.status(404).json({ error: "Gallery doesn't exists." })
 
-      galleryList.galleries.splice(galleryIndex, 1)
-      fs.writeFileSync(jsonPath, JSON.stringify(galleryList))
+    //Delete gallery from GalleryDB.json
+    const gallery = galleryList.galleries[galleryIndex]
 
-      //Delete file gallery
-      const galleryImagePath = path.join(__dirname, "../database", removePercentEncoding(gallery.path) + '.json')
-      fs.rmSync(galleryImagePath, { recursive: true })
+    galleryList.galleries.splice(galleryIndex, 1)
+    fs.writeFileSync(databasePath, JSON.stringify(galleryList))
 
-      //Delete all images saved in gallery directory
-      const galleryDirectoryPath = path.join(__dirname, "../images", removePercentEncoding(gallery.path))
-      fs.rmSync(galleryDirectoryPath, { recursive: true })
-    }
-    else{
-      return res.status(404).render('../views/partials/back.ejs', { Message: 'Gallery does not exists' })
-    }
+    //Delete file gallery
+    const galleryImagePath = path.join(
+      __dirname,
+      '../database',
+      removePercentEncoding(gallery.path) + '.json'
+    )
+    fs.rmSync(galleryImagePath, { recursive: true })
 
-    return res.status(200).render('../views/partials/back.ejs', { Message: 'Gallery was deleted' })
-  }
+    //Delete all images saved in gallery directory
+    const galleryDirectoryPath = path.join(
+      __dirname,
+      '../images',
+      removePercentEncoding(gallery.path)
+    )
+    fs.rmSync(galleryDirectoryPath, { recursive: true })
 
-  catch (err) {
-      return res.status(500).render('../views/partials/back.ejs', { Message: 'Error when deleting a gallery.' })
+    //Delete titlePhoto directory
+    /*const titlePhotoDirectoryPath = path.join(
+      __dirname,
+      '../images/titlePhoto',
+      removePercentEncoding(gallery.path)
+    )
+
+    fs.rmSync(titlePhotoDirectoryPath, { recursive: true })
+*/
+    return res.status(200).json({ error: 'Gallery was deleted.' })
+  } catch (err) {
+    return res.status(500).json({ error: 'Error when deleting a gallery.' })
   }
 })
 
-router.get('/images/:w(\\d+)x:h(\\d+)/:path', (req, res) => {
-  const { w, h } = req.params
-  if(req.params.path.includes('.png') || req.params.path.includes('.jpg')){
-    const parameters = req.params.path.split('/')
-    const directory = parameters[0]
-    const filename = parameters[1]
-    if (!galleryExist(replaceSpaceWithPercent(directory))){
-      return res.status(404).render('../views/partials/back.ejs', { Message: 'Gallery does not exist'})
-    }
+//if the request was to delete the image
+router.delete('/gallery/:gallery/:image', (req, res) => {
+  const galleryName = req.params.gallery
+  const imageName = req.params.image
 
-    const index = imageExist(directory, filename)
-    if(index === null){
-      return res.status(404).render('../views/partials/back.ejs', { Message: 'Photo not found' })
-    }
+  if (!req.url.includes('.jpeg')) {
+    return res.status(500).json({ error: 'A image has to contain .jpeg' })
   }
 
-  //const parameter = imagePath.replace(/:/g, '/')
-  const imageFilePath = path.join(__dirname, '../images/', req.params.path)
+  if (!galleryExist(replaceSpaceWithPercent(galleryName))) {
+    return res.status(404).json({ error: 'Gallery does not exist.' })
+  }
 
+  const index = imageExist(galleryName, imageName)
+  const galleryList = oneGalleryList(galleryName)
+  if (index !== null) {
+    galleryList.images.splice(index, 1)
+    //Delete information about photo from {name}.json
+    const updatedData = JSON.stringify(galleryList)
+
+    try {
+      fs.writeFileSync(
+        path.join(
+          __dirname,
+          '../database',
+          removePercentEncoding(galleryName) + '.json'
+        ),
+        updatedData,
+        'utf-8'
+      )
+      //Delete image as file
+      fs.unlinkSync(
+        path.join(
+          __dirname,
+          '../images',
+          removePercentEncoding(galleryName),
+          removePercentEncoding(imageName)
+        )
+      )
+
+      //delete information about titlePhoto if exist
+      const galleriesList = allGalleriesList()
+      const galleryIndex = galleriesList.galleries.findIndex(
+        (gallery) => gallery.path === replaceSpaceWithPercent(galleryName)
+      )
+      if (galleryIndex !== -1)
+        delete galleriesList.galleries[galleryIndex].image
+
+      fs.writeFileSync(databasePath, JSON.stringify(galleriesList))
+    } catch (err) {
+      return res.status(500).json({ error: 'Error working with a file.', err })
+    }
+  } else {
+    return res.status(404).json({ error: 'Image does not exist.' })
+  }
+
+  return res.status(200).json({ error: 'Image was deleted.' })
+})
+
+router.get('/images/:w(\\d+)x:h(\\d+)/:gallery/:image', (req, res) => {
+  const { w, h } = req.params
+  const galleryName = req.params.gallery
+  const imageName = req.params.image
+
+  if (!req.url.includes('.jpeg')) {
+    return res.status(500).json({ error: 'The image must be a .jpeg.' })
+  }
+  if (!galleryExist(replaceSpaceWithPercent(galleryName))) {
+    return res.status(404).json({ error: 'Gallery does not exist.' })
+  }
+  const index = imageExist(galleryName, imageName)
+  if (index === null) {
+    return res.status(404).json({ error: 'Photo not found.' })
+  }
+  const imageFilePath = path.join(
+    __dirname,
+    '../images/',
+    galleryName,
+    imageName
+  )
   sharp(imageFilePath)
     .metadata()
     .then((metadata) => {
@@ -182,110 +304,117 @@ router.get('/images/:w(\\d+)x:h(\\d+)/:path', (req, res) => {
 
       let width, height
 
-      if(w === '0'){
+      if (w === '0') {
         // If the width is set to 0, calculate it from the height by keeping the aspect ratio
         height = parseInt(h)
         width = Math.round((height * originalWidth) / originalHeight)
-      }
-      else if(h === '0'){
+      } else if (h === '0') {
         // If the height is set to 0, calculate it from the width by keeping the aspect ratio
         width = parseInt(w)
         height = Math.round((width * originalHeight) / originalWidth)
       }
 
       // If the height and width is set to 0, it's error
-      else if(w === '0' && h === '0'){
-        res.status(500).send("The photo preview can't be generated.")
-      }
-
-      else{
-        // If the width and height are explicitly specified, use their values
+      else if (w === '0' && h === '0') {
+        res.status(500).json({ error: "The photo preview can't be generated." })
+      } else {
         width = parseInt(w)
         height = parseInt(h)
       }
-
       sharp(imageFilePath)
         .resize(width, height)
         .toFormat(metadata.format)
         .toBuffer()
         .then((data) => {
           res.set('Content-Type', `image/${metadata.format}`)
-          res.send(data)
+          res.status(200).send(data)
         })
         .catch((error) => {
-          res.status(500).send("The photo preview can't be generated.")
+          res
+            .status(500)
+            .json({ error: "The photo preview can't be generated.", error })
         })
     })
     .catch((error) => {
-      res.status(500).send("The photo preview can't be generated.")
+      res
+        .status(500)
+        .json({ error: "The photo preview can't be generated.", error })
     })
 })
 
 //replace space with %20
 function replaceSpaceWithPercent(name) {
   if (name && name.includes(' ')) return name.replace(/ /g, '%20')
-  
+
   return name
 }
 //replace %20 with space
 function removePercentEncoding(name) {
-  if (name.includes('%20'))
-    return name.replace(/%20/g, ' ')
-  
+  if (name.includes('%20')) return name.replace(/%20/g, ' ')
+
   return name
 }
 
 //if generally database exist and if doesn't create it with basic structure
-function galleryExist(name){
-  try{
-    if (!fs.existsSync(jsonPath)) fs.writeFileSync(jsonPath, JSON.stringify({ galleries: [] }))
-
-    const galleryList = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'))
-    const gallery = galleryList.galleries.find(gallery => gallery.path === name)
-
-    if(gallery) return true
+function galleryExist(name) {
+  try {
+    const galleryList = JSON.parse(fs.readFileSync(databasePath, 'utf-8'))
+    const gallery = galleryList.galleries.find(
+      (gallery) => gallery.path === name
+    )
+    if (gallery) return true
     return false
-  }
-  catch(err){
+  } catch (err) {
     throw err
   }
 }
 
-//if specify galerry database exist return all of it and if doesn't create it with basic structure
-function oneGalleryList(name){
+//if specify gallery database exist return all of it and if doesn't create it with basic structure
+function oneGalleryList(name) {
   const galleryName = name
   const galleryPath = path.join(__dirname, '../database', galleryName + '.json')
   const galleryList = {
-    gallery:{
+    gallery: {
       path: replaceSpaceWithPercent(galleryName),
-      name: galleryName
+      name: galleryName,
     },
-    images: []
+    images: [],
   }
 
-  try{
-    if (!fs.existsSync(galleryPath)) fs.writeFileSync(galleryPath, JSON.stringify(galleryList))
+  try {
+    if (!fs.existsSync(galleryPath))
+      fs.writeFileSync(galleryPath, JSON.stringify(galleryList))
 
     const galleryData = fs.readFileSync(path.join(galleryPath), 'utf-8')
-    
+
     if (galleryData.length > 0) return JSON.parse(galleryData)
     else return galleryList
-  }
-  catch(err){
+  } catch (err) {
     throw err
   }
 }
 
-//If image exist in gallery return it's index if it isn't return null 
-function imageExist(directory, filename){
-  try{
-   
-    const galleryList = oneGalleryList(directory)
-    const index = galleryList.images.findIndex(image => image.name === filename)
-    return index !== -1 ? index : null
+function allGalleriesList() {
+  const galleryPath = path.join(__dirname, '../database/GalleryDB.json')
 
+  try {
+    const galleryData = fs.readFileSync(path.join(galleryPath), 'utf-8')
+
+    return JSON.parse(galleryData)
+  } catch (err) {
+    throw err
   }
-  catch(err){
+}
+
+//If image exist in gallery return it's index if it isn't return null
+function imageExist(gallery, imageName) {
+  try {
+    const galleryList = oneGalleryList(gallery)
+    const index = galleryList.images.findIndex(
+      (image) => image.name === imageName
+    )
+    return index !== -1 ? index : null
+  } catch (err) {
     throw err
   }
 }
