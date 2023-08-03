@@ -1,112 +1,87 @@
 const express = require('express')
-const multer = require('multer')
 const path = require('path')
 const fs = require('fs')
 const router = express.Router()
-const Ajv = require('ajv')
-const gallerySchema = require('../schemas/gallerySchema.js')
-const dataParser = require('../services/galleryServices.js')
-
-const ajv = new Ajv()
+const workWithData = require('../services/galleryServices.js')
+const validateData = require('../services/validate_Data.js')
+const gallerySchema = require('../schemas/galleryDataSchemas.js')
+const dataExistence = require('../services/data_existence.js')
 
 //Allows you to view all galleries and information about them
 router.get('/gallery', (req, res) => {
   try {
-    const validateResponse = ajv.compile(gallerySchema.galleryGetSchema)
-    const responseData = dataParser.parseData()
-    const isValid = validateResponse(responseData)
-    if (!isValid) {
-      return res.status(500).json(validateResponse.errors)
-    }
-
-    res.status(200).json(responseData)
+    const responseData = workWithData.parseData('GalleryDB')
+    if (validateData.isResponseValid(res, responseData))
+      res.status(200).json(responseData)
   } catch (err) {
-    res.status(500).json({ error: 'Internal Server Error' })
+    res.status(500).json({ error: 'Internal Server Error', err })
   }
 })
 
 router.post('/gallery', (req, res) => {
-  if (!isContentTypeJson(req)) {
-    return res.status(500).json({ error: 'Invalid JSON format.' })
-  }
-  const validateGallery = ajv.compile(gallerySchema.galleryPostSchema)
-  const galleryName = req.body.name
-  const isValid = validateGallery(req.body)
-  if (!isValid) {
-    const errors = validateGallery.errors
-    return res.status(400).json({
-      error: "Invalid request. The request doesn't conform to the schema.",
-      errors,
-    })
-  }
+  if (validateData.isDataValid(req, res)) {
+    const galleryName = req.body.name
 
-  checkSlashPresence(res, galleryName) //if galleryName contain slash
+    try {
+      const galleryList = workWithData.parseData('GalleryDB')
+      if (dataExistence.galleryExist(galleryList, galleryName) !== -1)
+        return res
+          .status(409)
+          .json({ error: 'Gallery with the same name already exists' })
 
-  const galleryDataWithOutImage = {
-    path: replaceSpaceWithPercent(galleryName),
-    name: galleryName,
-  }
+      const imageFolderPath = path.join(__dirname, '../images', galleryName)
 
-  try {
-    const galleryList = dataParser.parseData()
+      //save Data to {name}.json
+      workWithData.saveData(
+        gallerySchema.oneGalleryData(galleryName),
+        galleryName
+      )
 
-    const galleryExist = galleryList.galleries.find(
-      (gallery) => gallery.name === galleryName
-    )
-    if (galleryExist) {
-      return res
-        .status(409)
-        .json({ error: 'Gallery with the same name already exists' })
+      //creating a directory to store images
+      fs.mkdirSync(imageFolderPath, { recursive: true })
+
+      galleryList.galleries.push(gallerySchema.galleryData(galleryName))
+
+      //const updatedData = JSON.stringify(galleryList)
+      workWithData.saveData(galleryList, 'GalleryDB')
+
+      return res.status(201).json(gallerySchema.galleryData(galleryName))
+    } catch (err) {
+      return res.status(500).json({ error: 'Internal Server Error', err })
     }
-
-    const databasePath = path.join(
-      __dirname,
-      '../database/',
-      galleryName + '.json'
-    )
-    const imageFolderPath = path.join(__dirname, '../images', galleryName)
-    /*const titlePhotoFolderPath = path.join(
-      __dirname,
-      '../images/titlePhoto',
-      galleryName
-    )*/
-
-    const data = {
-      gallery: galleryDataWithOutImage,
-      images: [],
-    }
-
-    fs.writeFileSync(databasePath, JSON.stringify(data), 'utf-8')
-    fs.mkdirSync(imageFolderPath, { recursive: true })
-   // fs.mkdirSync(titlePhotoFolderPath, { recursive: true })
-
-    galleryList.galleries.push(galleryDataWithOutImage)
-
-    const updatedData = JSON.stringify(galleryList)
-    dataParser.saveData(updatedData)
-
-    return res
-      .status(201)
-      .json({ path: replaceSpaceWithPercent(galleryName), name: galleryName })
-  } catch (err) {
-    return res.status(500).json({ error: 'Internal Server Error', err })
   }
 })
 
-function checkSlashPresence(res, name) {
-  if (name.includes('/'))
-    return res.status(400).json({ error: 'Name can not contain slash.' })
-}
+//if the request was to delete, the gallery
+router.delete('/gallery/:gallery', (req, res) => {
+  const galleryName = req.params.gallery
+  const galleryList = workWithData.parseData('GalleryDB')
 
-function replaceSpaceWithPercent(name) {
-  if (name && name.includes(' ')) name = name.replace(/ /g, '%20')
+  const galleryIndex = dataExistence.galleryExist(galleryList, galleryName)
+  if (galleryIndex === -1)
+    return res.status(404).json({ error: 'Gallery does not exist.' })
 
-  return name
-}
+  try {
+    //Delete gallery from GalleryDB.json
+    galleryList.galleries.splice(galleryIndex, 1)
+    workWithData.saveData(galleryList, 'GalleryDB')
 
-function isContentTypeJson(dataHeader) {
-  const contentType = dataHeader.headers['content-type']
-  return contentType.toLowerCase().startsWith('application/json') ? true : false
-}
+    //Delete file gallery
+    const galleryImagePath = path.join(
+      __dirname,
+      '../database',
+      galleryName + '.json'
+    )
+    fs.rmSync(galleryImagePath, { recursive: true })
+
+    //Delete all images saved in gallery directory
+    const galleryDirectoryPath = path.join(__dirname, '../images', galleryName)
+    fs.rmSync(galleryDirectoryPath, { recursive: true })
+
+    return res.status(200).json({ error: 'Gallery was deleted.' })
+  } catch (err) {
+    return res.status(500).json({ error: 'Error when deleting a gallery.' })
+  }
+})
 
 module.exports = router

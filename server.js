@@ -6,6 +6,8 @@ const app = express()
 const indexRouter = require('./routes/index.js')
 const gallery = require('./routes/gallery.js')
 const one_gallery = require('./routes/one_gallery.js')
+const resizeImage = require('./routes/resize_Image.js')
+
 const PORT = process.env.PORT || 3000
 
 app.set('view engine', 'ejs')
@@ -17,12 +19,10 @@ app.use(expressLayouts)
 app.use(express.static('public'))
 app.use(express.urlencoded({ extended: true }))
 
-
 app.use('/', indexRouter)
 app.use('/', gallery)
 app.use('/', one_gallery)
-
-
+app.use('/', resizeImage)
 
 app.listen(PORT, () => {
   console.log('Server is running on port 3000')
