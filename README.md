@@ -15,6 +15,7 @@ index.js
 
 gallery.js 
 -> Obsahuje spracovenie backend requestov:
+
 -> Get /gallery -> výpis všetkých galérii
 
 	-> http://localhost:3000/gallery
@@ -29,6 +30,7 @@ gallery.js
 
 one_gallery.js 
 -> Obsahuje spracovenie backend requestov:
+
 -> Get /gallery/:gallery -> zobrazenie obsahu konkrétnej galérie
 
 	-> http://localhost:3000/gallery/:gallery
@@ -40,7 +42,8 @@ one_gallery.js
  	-> http://localhost:3000/gallery/:gallery/image
 
 resize_Image.js
--> Obsahuje spracovanie zmeny veľkosti fotky a jej následné zobrazenie	
+-> Obsahuje spracovanie zmeny veľkosti fotky a jej následné zobrazenie
+
 -> Get /images/:w(\\d+)x:h(\\d+)/:gallery/:image -> zobrazenie fotky z konkrétnej galérie v ľubovoľnej veľkosti
 
 	-> http://localhost:3000/images/wxh/gallery/image
