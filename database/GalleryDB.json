@@ -1,14 +1,1 @@
-{
-  "galleries": [
-    {
-      "path": "Api%20Test%20Image%20Resize",
-      "name": "Api Test Image Resize",
-      "image": {
-        "path": "s.jpeg",
-        "fullpath": "Api%20Test%20Image%20Resize\\s.jpeg",
-        "name": "s.jpeg",
-        "modified": "2023-08-03T13:05:10+02:00"
-      }
-    }
-  ]
-}
+{"galleries":[]}
