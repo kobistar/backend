@@ -2,12 +2,15 @@ Pre spustenie a správne fungovanie je potrebné spustiť príkaz v terminály
 npm install 
 
 Samotné spustenie je možné sprostredkovať dvoma spôsobmi z root
-	
- 	1. node server.js -> Pre klasicke spustenie používateľom
+1. jsPre klasicke spustenie používateľom
 
-	2. npm run dev -> Pre spustenie používané developerom.
-		-> Toto spustenie sprístupňuje devDependecies
-		-> Zároveň sa server pri každej zmene kódu sám reštartuje, aby sa aplikovali zmeny v kóde
+		-> node server
+	
+2. Pre spustenie používané developerom.
+	-> Toto spustenie sprístupňuje devDependecies
+	-> Zároveň sa server pri každej zmene kódu sám reštartuje, aby sa aplikovali zmeny v kóde
+
+   		-> npm run dev
 
 index.js 
 
