@@ -1,0 +1,7 @@
+node_modules/
+
+/images/*
+!/images/.gitkeep
+
+/database/*
+!/database/GalleryDB.json

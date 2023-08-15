@@ -1,19 +1,25 @@
-const express = require('express')
-const multer = require('multer')
-const path = require('path')
-const fs = require('fs')
-const router = express.Router()
-const dataExistence = require('../services/data_existence.js')
-const workWithData = require('../services/galleryServices.js')
-const validateData = require('../services/validate_Data.js')
-const gallerySchema = require('../schemas/galleryDataSchemas.js')
+import express from 'express'
+import { fileURLToPath } from 'url'
+import multer from 'multer'
+import { dirname, join } from 'path'
+import fs from 'fs'
+//import bodyParser from 'body-parser'
+import dataExistence from '../services/data_existence.js'
+import workWithData from '../services/galleryServices.js'
+import validateData from '../services/validate_Data.js'
+import gallerySchema from '../schemas/galleryDataSchemas.js'
+
+const oneGallery = express.Router()
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 //Defines a configuration for saving uploaded files to disk,
 //where the path to the destination folder and the filename
 //are derived from the request parameters and the original filename.
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, '../images/', req.params.gallery))
+    cb(null, join(__dirname, '../images/', req.params.gallery))
   },
 
   filename: function (req, file, cb) {
@@ -26,13 +32,6 @@ const upload = multer({
   storage: storage,
   fileFilter: (req, file, cb) => {
     const allowedTypes = ['image/jpeg']
-    if (!file) {
-      req.fileFilterError = gallerySchema.fileErrorSchema(
-        'No file uploaded',
-        'NO_FILE'
-      )
-      return cb(null, false)
-    }
 
     if (
       !allowedTypes.includes(file.mimetype) ||
@@ -47,7 +46,7 @@ const upload = multer({
     }
 
     const galleryIndex = dataExistence.galleryExist(
-      workWithData.parseData('GalleryDB'),
+      workWithData.parseData(),
       req.params.gallery
     )
     if (galleryIndex === -1) {
@@ -63,15 +62,12 @@ const upload = multer({
 })
 
 //The contents of a specific gallery will be displayed with information about all photos
-router.get('/gallery/:gallery', (req, res) => {
+oneGallery.get('/gallery/:gallery', (req, res) => {
   const galleryName = req.params.gallery
   try {
     //Checks whether the gallery exists
     if (
-      dataExistence.galleryExist(
-        workWithData.parseData('GalleryDB'),
-        galleryName
-      ) === -1
+      dataExistence.galleryExist(workWithData.parseData(), galleryName) === -1
     )
       return res.status(404).json({ error: 'Gallery does not exist' })
 
@@ -87,20 +83,20 @@ router.get('/gallery/:gallery', (req, res) => {
 })
 
 //Adding a new photo to the gallery
-router.post('/gallery/:gallery', upload.single('image'), (req, res) => {
+oneGallery.post('/gallery/:gallery', upload.single('image'), (req, res) => {
   if (validateData.isUploadFileValid(req, res)) {
     const galleryName = req.params.gallery
     const imageName = req.file.originalname
 
     try {
-      let galleryList = workWithData.parseData('GalleryDB')
+      let galleryList = workWithData.parseData()
       const galleryIndex = dataExistence.galleryExist(galleryList, galleryName)
       const gallery = galleryList.galleries[galleryIndex]
 
       //if gallery has no title photo, first upload photo will be in titlePhoto
       if (!gallery.image) {
         gallery.image = gallerySchema.imageData(imageName, galleryName)
-        workWithData.saveData(galleryList, 'GalleryDB')
+        workWithData.saveData(galleryList)
       }
 
       let oneGalleryList = workWithData.parseData(galleryName)
@@ -120,7 +116,7 @@ router.post('/gallery/:gallery', upload.single('image'), (req, res) => {
 })
 
 //if the request was to delete the image
-router.delete('/gallery/:gallery/:image', (req, res) => {
+oneGallery.delete('/gallery/:gallery/:image', (req, res) => {
   const galleryName = req.params.gallery
   const imageName = req.params.image
 
@@ -134,25 +130,29 @@ router.delete('/gallery/:gallery/:image', (req, res) => {
       workWithData.saveData(galleryList, galleryName)
 
       //Delete image as file
-      fs.unlinkSync(path.join(__dirname, '../images', galleryName, imageName))
+      fs.unlinkSync(join(__dirname, '../images', galleryName, imageName))
 
       //delete information about titlePhoto if exist
-      const galleriesList = workWithData.parseData('GalleryDB')
-      const galleryIndex = dataExistence.galleryExist(
-        galleriesList,
-        galleryName
-      )
-      const imageIndex = dataExistence.titlePhotoExist(galleriesList, imageName)
-      if (imageIndex !== -1 && galleryIndex !== -1) {
-        delete galleriesList.galleries[galleryIndex].image
-        workWithData.saveData(galleriesList, 'GalleryDB')
+      const galleriesList = workWithData.parseData()
+      if (
+        validateData.isTitlePhotoExist(galleriesList, galleryName, imageName)
+      ) {
+        const galleryIndex = dataExistence.galleryExist(
+          galleriesList,
+          galleryName
+        )
+
+        if (galleryIndex !== -1) {
+          delete galleriesList.galleries[galleryIndex].image
+          workWithData.saveData(galleriesList)
+        }
       }
     } catch (err) {
       return res.status(500).json({ error: 'Error working with a file.', err })
     }
 
-    return res.status(200).json({ error: 'Image was deleted.' })
+    return res.status(200).json('Image was deleted.')
   }
 })
 
-module.exports = router
+export default oneGallery

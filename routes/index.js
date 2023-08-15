@@ -1,8 +1,8 @@
-const express = require('express')
-const router = express.Router()
+import express from 'express'
+const index = express.Router()
 
-router.get('/', (req, res) => {
+index.get('/', (req, res) => {
     res.render('index')
 })
 
-module.exports = router
+export default index

@@ -1,36 +1,44 @@
-const express = require('express')
-const path = require('path')
-const fs = require('fs')
-const router = express.Router()
-const workWithData = require('../services/galleryServices.js')
-const validateData = require('../services/validate_Data.js')
-const gallerySchema = require('../schemas/galleryDataSchemas.js')
-const dataExistence = require('../services/data_existence.js')
+import express from 'express'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
+import fs from 'fs'
+//import bodyParser from 'body-parser'
+import workWithData from '../services/galleryServices.js'
+import validateData from '../services/validate_Data.js'
+import gallerySchema from '../schemas/galleryDataSchemas.js'
+import dataExistence from '../services/data_existence.js'
+
+const gallery = express.Router()
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 //Allows you to view all galleries and information about them
-router.get('/gallery', (req, res) => {
-  try {
-    const responseData = workWithData.parseData('GalleryDB')
-    if (validateData.isResponseValid(res, responseData))
-      res.status(200).json(responseData)
-  } catch (err) {
-    res.status(500).json({ error: 'Internal Server Error', err })
+gallery.get(
+  '/gallery',
+  /*workWithPagination(),*/ (req, res) => {
+    try {
+      const responseData = workWithData.parseData()
+      if (validateData.isResponseValid(res, responseData))
+        res.status(200).json(responseData)
+    } catch (err) {
+      res.status(500).json({ error: 'Internal Server Error', err })
+    }
   }
-})
+)
 
-router.post('/gallery', (req, res) => {
+gallery.post('/gallery', (req, res) => {
   if (validateData.isDataValid(req, res)) {
     const galleryName = req.body.name
-
     try {
-      const galleryList = workWithData.parseData('GalleryDB')
-      if (dataExistence.galleryExist(galleryList, galleryName) !== -1)
+      const galleryList = workWithData.parseData()
+      if (dataExistence.galleryExist(galleryList, galleryName) !== -1) {
         return res
           .status(409)
           .json({ error: 'Gallery with the same name already exists' })
+      }
 
-      const imageFolderPath = path.join(__dirname, '../images', galleryName)
-
+      const imageFolderPath = join(__dirname, '../images', galleryName)
       //save Data to {name}.json
       workWithData.saveData(
         gallerySchema.oneGalleryData(galleryName),
@@ -42,8 +50,7 @@ router.post('/gallery', (req, res) => {
 
       galleryList.galleries.push(gallerySchema.galleryData(galleryName))
 
-      //const updatedData = JSON.stringify(galleryList)
-      workWithData.saveData(galleryList, 'GalleryDB')
+      workWithData.saveData(galleryList)
 
       return res.status(201).json(gallerySchema.galleryData(galleryName))
     } catch (err) {
@@ -53,9 +60,9 @@ router.post('/gallery', (req, res) => {
 })
 
 //if the request was to delete, the gallery
-router.delete('/gallery/:gallery', (req, res) => {
+gallery.delete('/gallery/:gallery', (req, res) => {
   const galleryName = req.params.gallery
-  const galleryList = workWithData.parseData('GalleryDB')
+  const galleryList = workWithData.parseData()
 
   const galleryIndex = dataExistence.galleryExist(galleryList, galleryName)
   if (galleryIndex === -1)
@@ -64,10 +71,10 @@ router.delete('/gallery/:gallery', (req, res) => {
   try {
     //Delete gallery from GalleryDB.json
     galleryList.galleries.splice(galleryIndex, 1)
-    workWithData.saveData(galleryList, 'GalleryDB')
+    workWithData.saveData(galleryList)
 
     //Delete file gallery
-    const galleryImagePath = path.join(
+    const galleryImagePath = join(
       __dirname,
       '../database',
       galleryName + '.json'
@@ -75,13 +82,19 @@ router.delete('/gallery/:gallery', (req, res) => {
     fs.rmSync(galleryImagePath, { recursive: true })
 
     //Delete all images saved in gallery directory
-    const galleryDirectoryPath = path.join(__dirname, '../images', galleryName)
+    const galleryDirectoryPath = join(__dirname, '../images', galleryName)
     fs.rmSync(galleryDirectoryPath, { recursive: true })
 
-    return res.status(200).json({ error: 'Gallery was deleted.' })
+    return res.status(200).json('Gallery was deleted.')
   } catch (err) {
     return res.status(500).json({ error: 'Error when deleting a gallery.' })
   }
 })
 
-module.exports = router
+function workWithPagination() {
+  return (req, res, next) => {
+    next()
+  }
+}
+
+export default gallery

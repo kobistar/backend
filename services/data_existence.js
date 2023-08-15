@@ -12,11 +12,6 @@ function imageExist(galleryList, imageName) {
   return imageIndex
 }
 
-function titlePhotoExist(galleryList, imageName) {
-  const imageIndex = galleryList.galleries.findIndex(
-    (gallery) => gallery.image.name === imageName
-  )
-  return imageIndex
-}
+const dataExistence = { galleryExist, imageExist }
 
-module.exports = { galleryExist, imageExist, titlePhotoExist}
+export default dataExistence

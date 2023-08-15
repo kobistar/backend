@@ -1,25 +1,22 @@
-const path = require('path')
-const fs = require('fs')
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
+import fs from 'fs'
+import bodyParser from 'body-parser'
 
-function parseData(galleryName) {
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+
+function parseData(galleryName = 'GalleryDB') {
   try {
-    const databasePath = path.join(
-      __dirname,
-      '../database/',
-      galleryName + '.json'
-    )
+    const databasePath = join(__dirname, '../database/', galleryName + '.json')
     return JSON.parse(fs.readFileSync(databasePath, 'utf-8'))
   } catch (err) {
     throw err
   }
 }
 
-function saveData(galleryList, galleryName) {
-  const databasePath = path.join(
-    __dirname,
-    '../database/',
-    galleryName + '.json'
-  )
+function saveData(galleryList, galleryName = 'GalleryDB') {
+  const databasePath = join(__dirname, '../database/', galleryName + '.json')
   try {
     fs.writeFileSync(databasePath, JSON.stringify(galleryList), 'utf-8')
   } catch (err) {
@@ -28,9 +25,7 @@ function saveData(galleryList, galleryName) {
 }
 
 function replaceSpaceWithPercent(name) {
-  if (name && name.includes(' ')) name = name.replace(/ /g, '%20')
-
-  return name
+  return name && name.includes(' ') ? (name = name.replace(/ /g, '%20')) : name
 }
 
 function resizeImage(w, h, originalWidth, originalHeight) {
@@ -51,4 +46,19 @@ function resizeImage(w, h, originalWidth, originalHeight) {
   return { width, height }
 }
 
-module.exports = { parseData, saveData, replaceSpaceWithPercent, resizeImage }
+function conditionalBodyParser(req, res, next) {
+  if (req.path === '/gallery') {
+    bodyParser.text({ type: '*/*' })(req, res, next)
+  } else {
+    next()
+  }
+}
+
+const workWithData = {
+  parseData,
+  saveData,
+  replaceSpaceWithPercent,
+  resizeImage,
+  conditionalBodyParser,
+}
+export default workWithData

@@ -1,7 +1,10 @@
-const path = require('path')
-const moment = require('moment')
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
+import moment from 'moment'
+import workWithData from '../services/galleryServices.js'
 
-const workWithData = require('../services/galleryServices.js')
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 function galleryData(galleryName) {
   return {
@@ -15,7 +18,7 @@ function oneGalleryData(galleryName) {
 }
 
 function imageData(imageName, galleryName) {
-  const fullPathToImage = path.join(
+  const fullPathToImage = join(
     workWithData.replaceSpaceWithPercent(galleryName),
     workWithData.replaceSpaceWithPercent(imageName)
   )
@@ -40,10 +43,12 @@ function fileErrorSchema(error, code) {
   }
 }
 
-module.exports = {
+const gallerySchema = {
   galleryData,
   oneGalleryData,
   imageData,
   response,
   fileErrorSchema,
 }
+
+export default gallerySchema

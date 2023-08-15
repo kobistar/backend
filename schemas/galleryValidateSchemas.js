@@ -68,4 +68,10 @@ const oneGalleryGetSchema = {
   additionalProperties: true,
 }
 
-module.exports = { galleryPostSchema, galleryGetSchema, oneGalleryGetSchema }
+const gallerySchema = {
+  galleryPostSchema,
+  galleryGetSchema,
+  oneGalleryGetSchema,
+}
+
+export default gallerySchema

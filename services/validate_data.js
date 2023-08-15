@@ -1,15 +1,17 @@
-const Ajv = require('ajv')
-const gallerySchema = require('../schemas/galleryValidateSchemas.js')
-const dataExistence = require('../services/data_existence.js')
-const workWithData = require('../services/galleryServices.js')
+import Ajv from 'ajv'
+import gallerySchema from '../schemas/galleryValidateSchemas.js'
+import dataExistence from '../services/data_existence.js'
+import workWithData from '../services/galleryServices.js'
+
 const ajv = new Ajv()
 
 function isDataValid(req, res) {
-  return isContentTypeJson(res, req.headers) &&
+  return (
+    isRequestBlank(req, res) &&
+    isContentTypeJson(res, req.headers) &&
     isRequestValid(res, req.body) &&
     checkSlashPresence(res, req.body.name)
-    ? true
-    : false
+  )
 }
 
 function isImageResizeValid(req, res) {
@@ -17,33 +19,41 @@ function isImageResizeValid(req, res) {
   const imageName = req.params.image
   const { w, h } = req.params
 
-  return isImageRightSize(w, h, res) &&
-    galleryExist(galleryName, res) &&
+  return (
+    isImageRightSize(w, h, res) &&
+    ifGalleryExist(galleryName, res) &&
     isImageCorrect(req, res) &&
-    imageExist(galleryName, imageName, res)
-    ? true
-    : false
+    ifImageExist(galleryName, imageName, res)
+  )
 }
 
 function isUploadFileValid(req, res) {
   const galleryName = req.params.gallery
-
-  return isUploadCorrectFile(req, res) &&
-    galleryExist(galleryName, res) &&
-    isFileUpload(req, res)
-    ? true
-    : false
+  return (
+    ifGalleryExist(galleryName, res) &&
+    isUploadCorrectFile(req, res) &&
+    isFileUpload(req, res) &&
+    isImageAlreadyExist(galleryName, req.file.originalname, res)
+  )
 }
 
 function isDeleteImageValid(req, res) {
   const galleryName = req.params.gallery
   const imageName = req.params.image
 
-  return galleryExist(galleryName, res) &&
+  return (
+    ifGalleryExist(galleryName, res) &&
     isImageCorrect(req, res) &&
-    imageExist(galleryName, imageName, res)
-    ? true
-    : false
+    ifImageExist(galleryName, imageName, res)
+  )
+}
+
+function isImageCorrect(req, res) {
+  if (!req.url.includes('.jpeg')) {
+    res.status(500).json({ error: 'A image has to contain .jpeg' })
+    return false
+  }
+  return true
 }
 
 function isResponseValid(res, responseData) {
@@ -89,6 +99,17 @@ function isContentTypeJson(res, dataHeader) {
   return true
 }
 
+function isRequestBlank(req, res) {
+  console.log(req.body)
+  //console.log(req)
+  if (Object.keys(req.body).length === 0) {
+    //console.log("1")
+    res.status(500).json({ error: 'Request is blank. There is no data.' })
+    return false
+  }
+  return true
+}
+
 function checkSlashPresence(res, name) {
   if (name.includes('/')) {
     res.status(400).json({ error: 'Name can not contain slash.' })
@@ -99,40 +120,7 @@ function checkSlashPresence(res, name) {
 
 function isFileUpload(req, res) {
   if (!req.file) {
-    res.status(500).json({ error: 'The file did not upload.' })
-    return false
-  }
-  return true
-}
-
-function isImageCorrect(req, res) {
-  if (!req.url.includes('.jpeg')) {
-    res.status(500).json({ error: 'A image has to contain .jpeg' })
-    return false
-  }
-  return true
-}
-
-function galleryExist(galleryName, res) {
-  if (
-    dataExistence.galleryExist(
-      workWithData.parseData('GalleryDB'),
-      galleryName
-    ) === -1
-  ) {
-    res.status(404).json({ error: 'Gallery does not exist.' })
-    return false
-  }
-
-  return true
-}
-
-function imageExist(galleryName, imageName, res) {
-  if (
-    dataExistence.imageExist(workWithData.parseData(galleryName), imageName) ===
-    -1
-  ) {
-    res.status(404).json({ error: 'Image does not exist.' })
+    res.status(500).json({ error: 'No_file' })
     return false
   }
   return true
@@ -149,6 +137,28 @@ function isUploadCorrectFile(req, res) {
   return true
 }
 
+function ifGalleryExist(galleryName, res) {
+  if (
+    dataExistence.galleryExist(workWithData.parseData(), galleryName) === -1
+  ) {
+    res.status(404).json({ error: 'Gallery does not exist.' })
+    return false
+  }
+
+  return true
+}
+
+function ifImageExist(galleryName, imageName, res) {
+  if (
+    dataExistence.imageExist(workWithData.parseData(galleryName), imageName) ===
+    -1
+  ) {
+    res.status(404).json({ error: 'Image does not exist.' })
+    return false
+  }
+  return true
+}
+
 function isImageRightSize(w, h, res) {
   if (w === '0' && h === '0') {
     res.status(500).json({ error: "The photo preview can't be generated." })
@@ -157,17 +167,42 @@ function isImageRightSize(w, h, res) {
   return true
 }
 
-module.exports = {
+function isImageAlreadyExist(galleryName, imageName, res) {
+  if (
+    dataExistence.imageExist(workWithData.parseData(galleryName), imageName) !==
+    -1
+  ) {
+    res.status(409).json({ error: 'Image already exist in this gallery.' })
+    return false
+  }
+  return true
+}
+
+function isTitlePhotoExist(galleriesList, galleryName, imageName) {
+  const gallery = galleriesList.galleries.find(
+    (gallery) => gallery.name === galleryName
+  )
+  if (gallery.image && gallery.image.name === imageName) return true
+
+  return false
+}
+
+const validateData = {
   isDataValid,
   isResponseValid,
+  isImageCorrect,
   isOneGalleryResponseValid,
   isFileUpload,
-  isImageCorrect,
-  galleryExist,
+  ifGalleryExist,
+  isRequestBlank,
   isUploadCorrectFile,
-  imageExist,
+  ifImageExist,
   isImageRightSize,
   isImageResizeValid,
   isUploadFileValid,
   isDeleteImageValid,
+  isImageAlreadyExist,
+  isTitlePhotoExist,
 }
+
+export default validateData
