@@ -73,7 +73,7 @@ oneGallery.get('/gallery/:gallery', (req, res) => {
 
     const responseData = workWithData.parseData(galleryName)
     const isValid = validateData.isOneGalleryResponseValid(res, responseData)
-
+    
     if (isValid)
       //if the gallery database exists, the oneGalleryList function is called, which will contain information about the gallery
       return res.status(200).json(responseData)

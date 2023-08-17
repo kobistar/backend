@@ -187,6 +187,30 @@ function isTitlePhotoExist(galleriesList, galleryName, imageName) {
   return false
 }
 
+function isNumberAndValid(req, res) {
+  let boolValue = false
+  if (req.query.page) boolValue = isQueryValid(req.query.page, res)
+  if (req.query.limit) boolValue = isQueryValid(req.query.limit, res)
+
+  return boolValue
+}
+
+function isQueryValid(query, res) {
+  if (isNaN(query)) {
+    res.status(500).json({ error: 'Query page and limit must be a number.' })
+    return false
+  }
+  if (!isNaN(query) && query <= 0) {
+    res
+      .status(500)
+      .json({ error: 'Query page and limit must be a higher number than 0.' })
+    return false
+  }
+
+  return true
+}
+
+
 const validateData = {
   isDataValid,
   isResponseValid,
@@ -203,6 +227,8 @@ const validateData = {
   isDeleteImageValid,
   isImageAlreadyExist,
   isTitlePhotoExist,
+  isNumberAndValid,
+  isQueryValid,
 }
 
 export default validateData

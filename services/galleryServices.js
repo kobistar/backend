@@ -54,11 +54,37 @@ function conditionalBodyParser(req, res, next) {
   }
 }
 
+function workWithPagination(req) {
+  const page = req.query.page ? req.query.page : parseInt(1)
+  const galleryPerPage = req.query.limit ? req.query.limit : parseInt(2)
+
+  const galleriesList = workWithData.parseData()
+  const amountGalleries = galleriesList.galleries.length
+
+  let startIndex = (page - 1) * parseInt(galleryPerPage)
+  let endIndex = startIndex + parseInt(galleryPerPage)
+  if (
+    amountGalleries === 0 ||
+    (startIndex > amountGalleries &&
+      startIndex - galleryPerPage > galleryPerPage)
+  )
+    return JSON.parse('{"galleries":[]}')
+
+  if (amountGalleries === 1) {
+    startIndex = 0
+    endIndex = 1
+  }
+
+  const galleries = galleriesList.galleries.slice(startIndex, endIndex)
+  return { galleries }
+}
+
 const workWithData = {
   parseData,
   saveData,
   replaceSpaceWithPercent,
   resizeImage,
   conditionalBodyParser,
+  workWithPagination,
 }
 export default workWithData

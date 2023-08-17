@@ -2,30 +2,27 @@ import express from 'express'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import fs from 'fs'
-//import bodyParser from 'body-parser'
 import workWithData from '../services/galleryServices.js'
 import validateData from '../services/validate_Data.js'
 import gallerySchema from '../schemas/galleryDataSchemas.js'
 import dataExistence from '../services/data_existence.js'
 
 const gallery = express.Router()
-
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 //Allows you to view all galleries and information about them
-gallery.get(
-  '/gallery',
-  /*workWithPagination(),*/ (req, res) => {
-    try {
-      const responseData = workWithData.parseData()
-      if (validateData.isResponseValid(res, responseData))
-        res.status(200).json(responseData)
-    } catch (err) {
-      res.status(500).json({ error: 'Internal Server Error', err })
-    }
+gallery.get('/gallery', (req, res) => {
+  try {
+    const responseData = validateData.isNumberAndValid(req, res)
+      ? workWithData.workWithPagination(req)
+      : workWithData.parseData()
+    if (validateData.isResponseValid(res, responseData))
+      res.status(200).json(responseData)
+  } catch (err) {
+    res.status(500).json({ error: 'Internal Server Error', err })
   }
-)
+})
 
 gallery.post('/gallery', (req, res) => {
   if (validateData.isDataValid(req, res)) {
@@ -90,11 +87,5 @@ gallery.delete('/gallery/:gallery', (req, res) => {
     return res.status(500).json({ error: 'Error when deleting a gallery.' })
   }
 })
-
-function workWithPagination() {
-  return (req, res, next) => {
-    next()
-  }
-}
 
 export default gallery
